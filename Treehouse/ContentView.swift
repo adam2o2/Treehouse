@@ -23,8 +23,8 @@ struct ContentView: View {
             VStack {
                 Spacer(minLength: 40)
                 
-                // Title
-                Text("Take a daily photo")
+                // Title changes when showOverlay becomes true
+                Text(showOverlay ? "Ai will roast you" : "Take a daily photo")
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundColor(.black)
                 
