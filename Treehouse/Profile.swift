@@ -8,13 +8,12 @@
 import SwiftUI
 
 struct Profile: View {
-    // Match the adaptive styling used in other files
     @Environment(\.horizontalSizeClass) var sizeClass
     @Environment(\.colorScheme) var colorScheme
     
-    // State variable to trigger navigation to Home
-    @State private var navigateToHome = false
-    
+    // State variable to trigger navigation to Username
+    @State private var navigateToUsername = false
+
     var body: some View {
         NavigationView {
             ZStack {
@@ -46,11 +45,15 @@ struct Profile: View {
                     
                     // "Upload a profile picture" button
                     Button(action: {
-                        // Navigate to Home when tapped
-                        navigateToHome = true
+                        // Navigate to Username when tapped
+                        navigateToUsername = true
                     }) {
-                        Text("Upload a profile picture")
-                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                        HStack {
+                            Spacer()
+                            Text("Upload a profile picture")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            Spacer()
+                        }
                     }
                     .frame(width: sizeClass == .compact ? 291 : 400,
                            height: sizeClass == .compact ? 62 : 70)
@@ -59,14 +62,15 @@ struct Profile: View {
                     .cornerRadius(sizeClass == .compact ? 40 : 50)
                     .shadow(radius: 24, x: 0, y: 14)
                     .padding(.bottom, sizeClass == .compact ? 20 : 30)
+                    .contentShape(Rectangle()) // Makes the entire area tappable
                 }
                 
-                // Hidden NavigationLink to navigate to Home and hide the back button.
-                NavigationLink(destination: Home().navigationBarBackButtonHidden(true),
-                               isActive: $navigateToHome) {
+                // Hidden NavigationLink that navigates to Username and hides the back button.
+                NavigationLink(destination: Username().navigationBarBackButtonHidden(true),
+                               isActive: $navigateToUsername) {
                     EmptyView()
                 }
-                               .hidden()
+                .hidden()
             }
         }
     }

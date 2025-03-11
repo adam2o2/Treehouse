@@ -128,8 +128,14 @@ struct ContentView: View {
                             showOverlay = true
                         }
                     }) {
-                        Text("Continue")
-                            .font(.system(size: 18, weight: .semibold, design: .rounded))
+                        // Wrapping the text in a container that expands to fill the button area
+                        HStack {
+                            Spacer()
+                            Text("Continue")
+                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            Spacer()
+                        }
+                        // Alternatively, you can use .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                     .frame(width: sizeClass == .compact ? 291 : 400,
                            height: sizeClass == .compact ? 62 : 70)
@@ -138,6 +144,7 @@ struct ContentView: View {
                     .cornerRadius(sizeClass == .compact ? 40 : 50)
                     .shadow(radius: 24, x: 0, y: 14)
                     .padding(.bottom, sizeClass == .compact ? 20 : 30)
+                    .contentShape(Rectangle()) // Ensures the entire area is tappable
                 }
                 
                 // Hidden NavigationLink that triggers when isProfileActive is true.
