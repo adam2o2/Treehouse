@@ -71,12 +71,8 @@ struct Profile: View {
                     }) {
                         HStack {
                             Spacer()
-                            if isUploading {
-                                ProgressView()
-                            } else {
-                                Text("Continue")
-                                    .font(.system(size: 16, weight: .semibold, design: .rounded))
-                            }
+                            Text("Continue")
+                                .font(.system(size: 16, weight: .semibold, design: .rounded))
                             Spacer()
                         }
                     }
@@ -87,7 +83,7 @@ struct Profile: View {
                     .cornerRadius(sizeClass == .compact ? 40 : 50)
                     .shadow(radius: 24, x: 0, y: 14)
                     .padding(.bottom, sizeClass == .compact ? 20 : 30)
-                    .disabled(selectedImage == nil || isUploading)
+                    .disabled(selectedImage == nil)
                 }
 
                 // NavigationLink that becomes active after a successful upload.
