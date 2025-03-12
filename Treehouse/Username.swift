@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 struct Username: View {
     @Environment(\.horizontalSizeClass) var sizeClass
@@ -15,6 +17,8 @@ struct Username: View {
     @State private var username: String = ""
     // State variable to trigger navigation to Home
     @State private var navigateToHome = false
+    // State variable to show a loading indicator while saving
+    @State private var isSaving = false
 
     var body: some View {
         NavigationView {
@@ -51,12 +55,16 @@ struct Username: View {
                     
                     // "Continue" button styled like the Apple sign-in button
                     Button(action: {
-                        navigateToHome = true
+                        saveUsername()
                     }) {
                         HStack {
                             Spacer()
-                            Text("Continue")
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            if isSaving {
+                                ProgressView()
+                            } else {
+                                Text("Continue")
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                            }
                             Spacer()
                         }
                     }
@@ -68,6 +76,7 @@ struct Username: View {
                     .shadow(radius: 24, x: 0, y: 14)
                     .padding(.bottom, sizeClass == .compact ? 20 : 30)
                     .contentShape(Rectangle()) // Ensures the entire area is tappable
+                    .disabled(username.isEmpty || isSaving)
                 }
                 
                 // Hidden NavigationLink that navigates to Home and hides the back button.
@@ -76,6 +85,30 @@ struct Username: View {
                     EmptyView()
                 }
                 .hidden()
+            }
+            // Prevent the keyboard from shifting the layout for the bottom edge.
+            .ignoresSafeArea(.keyboard, edges: .bottom)
+        }
+    }
+    
+    // This function saves the username to Firestore under the current user's UID.
+    func saveUsername() {
+        guard !username.isEmpty else { return }
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("User not authenticated")
+            return
+        }
+        
+        isSaving = true
+        
+        let db = Firestore.firestore()
+        db.collection("users").document(uid).setData(["username": username], merge: true) { error in
+            isSaving = false
+            if let error = error {
+                print("Error saving username: \(error.localizedDescription)")
+            } else {
+                // Navigate to Home view after successful save
+                navigateToHome = true
             }
         }
     }
