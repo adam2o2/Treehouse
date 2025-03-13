@@ -43,6 +43,7 @@ struct Username: View {
                     
                     // Text field for username
                     TextField("adam", text: $username)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
                         .padding()
                         .frame(width: 300, height: 70)
                         .background(Color.gray.opacity(0.1))
