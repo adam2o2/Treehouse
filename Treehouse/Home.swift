@@ -30,60 +30,70 @@ class UsersViewModel: ObservableObject {
         users = userMappings.map { user in
             User(id: UUID().uuidString,
                  name: user.name,
-                 profileImageURL: user.image) // Using asset names
+                 profileImageURL: user.image)
         }
     }
 }
 
 struct Home: View {
     @State private var showHalfSheet = false
+    @State private var navigateToCamera = false
 
     var body: some View {
-        ZStack {
-            Color.white.ignoresSafeArea()
-            
-            VStack(alignment: .leading) {
-                Text("Treehouse")
-                    .font(.system(size: 56, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
-                    .padding(.top, 50)
-                    .padding(.leading, 20)
+        NavigationView {
+            ZStack {
+                Color.white.ignoresSafeArea()
                 
-                Text("Create a group chat below")
-                    .font(.system(size: 18, weight: .bold, design: .rounded))
-                    .foregroundColor(.black)
-                    .frame(maxWidth: .infinity)
-                    .multilineTextAlignment(.center)
-                    .offset(y: 260)
-                
-                Spacer()
-                
-                HStack {
+                VStack(alignment: .leading) {
+                    Text("Treehouse")
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .padding(.top, 50)
+                        .padding(.leading, 20)
+                    
+                    Text("Create a group chat below")
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundColor(.black)
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .offset(y: 260)
+                    
                     Spacer()
-                    Image(systemName: "house.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.gray)
-                    Spacer()
-                    Image(systemName: "heart.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.gray)
-                        .rotationEffect(.degrees(180))
-                        .onTapGesture {
-                            showHalfSheet = true
-                        }
-                    Spacer()
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 22))
-                        .foregroundColor(.gray)
-                    Spacer()
+                    
+                    HStack {
+                        Spacer()
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.gray)
+                        Spacer()
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.gray)
+                            .rotationEffect(.degrees(180))
+                            .onTapGesture {
+                                showHalfSheet = true
+                            }
+                        Spacer()
+                        Image(systemName: "person.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.gray)
+                        Spacer()
+                    }
+                    .padding(.bottom, 20)
                 }
-                .padding(.bottom, 20)
             }
-        }
-        .sheet(isPresented: $showHalfSheet) {
-            HalfSheetView()
-                .presentationDetents([.medium])
-                .interactiveDismissDisabled(true) // Prevents dismissal when tapping outside
+            .sheet(isPresented: $showHalfSheet) {
+                HalfSheetView(navigateToCamera: $navigateToCamera)
+                    .presentationDetents([.medium])
+                    .interactiveDismissDisabled(true)
+            }
+            // Updated NavigationLink using your snippet, switching destination to Camera.
+            .background(
+                NavigationLink(destination: Camera().navigationBarBackButtonHidden(true),
+                               isActive: $navigateToCamera) {
+                    EmptyView()
+                }
+            )
         }
     }
 }
@@ -92,13 +102,18 @@ struct HalfSheetView: View {
     @StateObject private var viewModel = UsersViewModel()
     @Environment(\.horizontalSizeClass) var sizeClass
     @Environment(\.colorScheme) var colorScheme
+    @Binding var navigateToCamera: Bool
     @State private var selectedUsers: [String] = []
     @State private var isNamingGroup = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ZStack(alignment: .bottom) {
             if isNamingGroup {
-                GroupNameView()
+                GroupNameView(onDone: {
+                    dismiss() // Dismiss the half-sheet
+                    navigateToCamera = true // Trigger navigation to Camera in Home
+                })
             } else {
                 VStack(spacing: 0) {
                     // Top handle bar
@@ -160,7 +175,7 @@ struct HalfSheetView: View {
                                 .padding(.horizontal, 20)
                             }
                         }
-                        .padding(.bottom, 90) // Ensures scrolling behind the button
+                        .padding(.bottom, 90)
                     }
                 }
                 
@@ -182,8 +197,8 @@ struct HalfSheetView: View {
                 .cornerRadius(sizeClass == .compact ? 40 : 50)
                 .shadow(radius: 24, x: 0, y: 14)
                 .padding(.bottom, 20)
-                .contentShape(Rectangle()) // Ensures the entire area is tappable
-                .disabled(selectedUsers.isEmpty) // Keeps button disabled if no users are selected
+                .contentShape(Rectangle())
+                .disabled(selectedUsers.isEmpty)
             }
         }
         .onAppear {
@@ -203,6 +218,7 @@ struct HalfSheetView: View {
 struct GroupNameView: View {
     @State private var groupName = ""
     @FocusState private var isKeyboardActive: Bool
+    var onDone: () -> Void
 
     var body: some View {
         VStack {
@@ -219,11 +235,15 @@ struct GroupNameView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
                 .focused($isKeyboardActive)
+                .submitLabel(.done) // Sets the return key to blue "Done"
+                .onSubmit {
+                    onDone() // Dismiss the sheet and trigger navigation
+                }
 
             Spacer()
         }
         .background(Color.white.ignoresSafeArea())
-        .ignoresSafeArea(.keyboard) // Prevents the sheet from moving up when the keyboard appears
+        .ignoresSafeArea(.keyboard)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 isKeyboardActive = true // Automatically opens the keyboard
