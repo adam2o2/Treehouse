@@ -29,21 +29,21 @@ struct GroupChat: View {
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(.black)
+                            .foregroundColor(.gray)
                     }
                     
                     Spacer()
                     
                     // Center: "Sassy Captions"
                     Text("Sassy Captions")
-                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.black)
                     
                     Spacer()
                     
                     // Right: "18:00"
                     Text("18:00")
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.black)
                 }
                 .padding(.horizontal, 16)
@@ -127,7 +127,7 @@ struct GroupChat: View {
                     .background(Color.white)
                     .cornerRadius(50)
                     .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                    .offset(x: 20)
+                    .offset(x: 10)
                     
                     Spacer()
                     
@@ -144,6 +144,7 @@ struct GroupChat: View {
                     .background(Color.white)
                     .clipShape(Circle())
                     .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+                    .offset(x: -5)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
