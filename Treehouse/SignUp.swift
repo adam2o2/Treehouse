@@ -16,6 +16,7 @@ struct SignUp: View {
     @State private var imagesAppeared = false
     @State private var currentNonce: String?
     @State private var isUserAuthenticated = false
+    @State private var isExistingUser = false  // New state variable to differentiate users
 
     @Environment(\.horizontalSizeClass) var sizeClass
     @Environment(\.colorScheme) var colorScheme
@@ -111,11 +112,18 @@ struct SignUp: View {
                     Spacer()
                 }
                 
-                // Hidden NavigationLink for redirection after successful sign in,
-                // with the back button hidden on ContentView.
-                NavigationLink(destination: ContentView().navigationBarBackButtonHidden(true), isActive: $isUserAuthenticated) {
-                    EmptyView()
-                }
+                // Hidden NavigationLink that directs users based on their account status.
+                NavigationLink(destination:
+                    Group {
+                        if isExistingUser {
+                            Home().navigationBarBackButtonHidden(true)
+                        } else {
+                            ContentView().navigationBarBackButtonHidden(true)
+                        }
+                    },
+                    isActive: $isUserAuthenticated) {
+                        EmptyView()
+                    }
                 
                 // Sign in with Apple button with Firebase integration
                 SignInWithAppleButton(
@@ -170,10 +178,9 @@ struct SignUp: View {
                                         print("Error writing document: \(error.localizedDescription)")
                                     } else {
                                         print("User data successfully written!")
-                                        // Redirect to ContentView
+                                        // For a new user (who just signed up) we navigate to ContentView.
                                         DispatchQueue.main.async {
                                             isUserAuthenticated = true
-                                            print("isUserAuthenticated set to true")
                                         }
                                     }
                                 }
@@ -195,6 +202,11 @@ struct SignUp: View {
             .onAppear {
                 imagesAppeared = true
                 triggerHaptic()
+                // Check if a user is already signed in. If so, navigate to Home.
+                if Auth.auth().currentUser != nil {
+                    isExistingUser = true
+                    isUserAuthenticated = true
+                }
             }
             .onDisappear {
                 imagesAppeared = false
