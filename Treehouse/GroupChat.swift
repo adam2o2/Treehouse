@@ -11,6 +11,7 @@ import FirebaseAuth
 
 struct GroupChat: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var navigateToHome: Bool = false   // State variable for navigation
     
     @State private var latestImageURL: String = ""
     @State private var username: String = ""
@@ -25,7 +26,7 @@ struct GroupChat: View {
                 HStack {
                     // Left chevron (custom back button)
                     Button(action: {
-                        dismiss()  // Return to previous view
+                        navigateToHome = true
                     }) {
                         Image(systemName: "chevron.left")
                             .font(.system(size: 18, weight: .semibold))
@@ -146,7 +147,7 @@ struct GroupChat: View {
                             .foregroundColor(.black)
                             .padding(16)
                     }
-                    .frame(width: 70, height: 70)  // Adjust these values to change the circle size
+                    .frame(width: 70, height: 70)
                     .background(Color.white)
                     .clipShape(Circle())
                     .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
@@ -155,6 +156,12 @@ struct GroupChat: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
             }
+            
+            // Hidden NavigationLink activated by the chevron tap.
+            NavigationLink(destination: Home().navigationBarBackButtonHidden(true), isActive: $navigateToHome) {
+                EmptyView()
+            }
+            .hidden()
         }
         .navigationBarBackButtonHidden(true)  // Hide default back button
         .onAppear {
