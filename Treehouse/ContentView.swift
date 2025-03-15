@@ -71,19 +71,29 @@ struct ContentView: View {
                                         VStack {
                                             // Top bar with "Bode" on the left and "10m" on the right
                                             HStack {
-                                                Text("Bode")
-                                                    .font(.system(size: 16, weight: .bold, design: .rounded))
-                                                    .foregroundColor(.white)
-                                                    .padding(.horizontal, 12)
-                                                    .padding(.vertical, 6)
-                                                    .background(Color.black.opacity(0.4))
-                                                    .clipShape(Capsule())
+                                                HStack(spacing: 8) {
+                                                    // Replace the circle with an image asset called "Adam"
+                                                    Image("Adam")
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 35, height: 35)
+                                                        .clipShape(Circle())
+                                                    
+                                                    Text("Bode")
+                                                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                                                        .foregroundColor(.white)
+                                                }
+                                                .padding(.horizontal, 12)
+                                                .padding(.vertical, 9)
+                                                .background(Color.black.opacity(0.2))
+                                                .clipShape(Capsule())
                                                 
                                                 Spacer()
                                                 
                                                 Text("10m")
                                                     .font(.system(size: 16, weight: .bold, design: .rounded))
                                                     .foregroundColor(.white)
+                                                    .shadow(color: Color.black.opacity(0.5), radius: 2, x: 0, y: 1)
                                             }
                                             .padding(.top, 16)
                                             .padding(.horizontal, 16)
