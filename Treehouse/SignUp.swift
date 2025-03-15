@@ -1,5 +1,5 @@
 //
-//  TreeHouse.swift
+//  SignUp.swift
 //  Treehouse
 //
 //  Created by Safiya May on 3/10/25.
@@ -12,7 +12,7 @@ import CryptoKit
 import FirebaseAuth
 import FirebaseFirestore
 
-struct Treehouse: View {
+struct SignUp: View {
     @State private var imagesAppeared = false
     @State private var currentNonce: String?
     @State private var isUserAuthenticated = false
@@ -250,5 +250,5 @@ struct Treehouse: View {
 }
 
 #Preview {
-    Treehouse()
+    SignUp()
 }

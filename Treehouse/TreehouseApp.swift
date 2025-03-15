@@ -22,7 +22,7 @@ struct TreehouseApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var delegate
     var body: some Scene {
         WindowGroup {
-            Treehouse()
+            SignUp()
         }
     }
 }
