@@ -82,15 +82,21 @@ struct GroupChat: View {
                                 Circle().fill(Color.gray)
                             }
                         }
-                        .frame(width: 35, height: 35)
+                        .frame(width: 33, height: 33)
                         .clipShape(Circle())
                         
                         // Username in white
-                        Text(username)
+                        Text(username.isEmpty ? "Hasque" : username)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                     }
-                    .padding(8)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(Color.gray.opacity(0.8))
+                    )
+                    .offset(x: 14, y: 20)
                 }
                 
                 Spacer(minLength: 30)
