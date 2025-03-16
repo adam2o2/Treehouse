@@ -10,12 +10,15 @@ import AVFoundation
 import Firebase
 import FirebaseAuth
 import FirebaseStorage
+import FirebaseFirestore
+
+// MARK: - Camera View Controller
 
 class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
     var captureSession: AVCaptureSession?
     var previewLayer: AVCaptureVideoPreviewLayer?
 
-    // Photo output for capturing still images
+    // Photo output for capturing images
     let photoOutput = AVCapturePhotoOutput()
     
     // Closure to call when a photo is captured
@@ -40,7 +43,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
 
         session.addInput(input)
         
-        // Add photo output
         if session.canAddOutput(photoOutput) {
             session.addOutput(photoOutput)
         }
@@ -53,7 +55,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
         self.captureSession = session
         self.previewLayer = preview
 
-        // Start the session
         session.startRunning()
     }
     
@@ -63,18 +64,18 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
         photoOutput.capturePhoto(with: settings, delegate: self)
     }
     
-    // AVCapturePhotoCaptureDelegate: handle captured photo
+    // Delegate method: called when a photo is captured
     func photoOutput(_ output: AVCapturePhotoOutput,
                      didFinishProcessingPhoto photo: AVCapturePhoto,
                      error: Error?) {
         guard let imageData = photo.fileDataRepresentation() else { return }
-        // Pass the image data back to SwiftUI
         onPhotoCaptured?(imageData)
     }
 }
 
+// MARK: - CameraPreview (UIViewControllerRepresentable)
+
 struct CameraPreview: UIViewControllerRepresentable {
-    // Closure to handle photo capture in SwiftUI
     var onPhotoCaptured: (Data) -> Void
 
     func makeUIViewController(context: Context) -> CameraViewController {
@@ -83,55 +84,48 @@ struct CameraPreview: UIViewControllerRepresentable {
         return vc
     }
 
-    func updateUIViewController(_ uiViewController: CameraViewController,
-                                context: Context) {
+    func updateUIViewController(_ uiViewController: CameraViewController, context: Context) {
         // No updates needed
     }
 }
 
+// MARK: - Camera SwiftUI View
+
 struct Camera: View {
     @Environment(\.dismiss) private var dismiss
-    
-    // We’ll fetch username & profileImageURL from Firestore (not hardcoded)
     @State private var username: String = ""
     @State private var profileImageURL: String = ""
-    
-    // For navigation to GroupChat
     @State private var navigateToGroupChat: Bool = false
+    
+    // Group document reference passed from Home
+    var groupRef: DocumentReference?
     
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
                 VStack(spacing: 0) {
-                    
                     // Camera area (top ~84%)
                     ZStack {
-                        // Live camera feed
                         CameraPreview { imageData in
-                            // Once a photo is captured, store in Firestore,
-                            // then navigate to GroupChat
+                            // Once a photo is captured, upload and update group document
                             storePhotoInFirestore(imageData: imageData)
                         }
                         .frame(height: geo.size.height * 0.84)
                         .clipped()
-
-                        // Place shutter button at bottom of camera feed
+                        
+                        // Shutter button overlay
                         VStack {
                             Spacer()
                             Button(action: {
-                                // Post notification to trigger capturePhoto()
                                 NotificationCenter.default.post(
                                     name: Notification.Name("CapturePhoto"),
                                     object: nil
                                 )
                             }) {
                                 ZStack {
-                                    // Outer circle with stroke
                                     Circle()
                                         .stroke(Color.white, lineWidth: 3)
                                         .frame(width: 75, height: 75)
-                                    
-                                    // Inner circle
                                     Circle()
                                         .fill(Color.white)
                                         .frame(width: 65, height: 65)
@@ -142,39 +136,39 @@ struct Camera: View {
                         }
                     }
                     
-                    // Bottom black box (~30%)
+                    // Bottom black area with a placeholder caption
                     ZStack {
                         Color.black.edgesIgnoringSafeArea(.all)
                         
                         VStack(spacing: 20) {
-                            // Gray Capsule as its own element
                             Capsule()
                                 .fill(Color.gray)
                                 .frame(width: 290, height: 70)
                                 .offset(y: -35)
                             
-                            // Sassy Captions text
                             Text("Sassy Captions")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                                 .offset(y: -101)
                         }
-                        
                     }
                     .frame(height: geo.size.height * 0.3)
                 }
             }
             .ignoresSafeArea()
-            // Navigation to GroupChat
             .navigationDestination(isPresented: $navigateToGroupChat) {
-                GroupChat()
+                if let groupId = groupRef?.documentID {
+                    GroupChat(groupId: groupId)
+                } else {
+                    // Optionally handle the error case or pass a default value
+                    GroupChat(groupId: "")
+                }
             }
-            // Fetch user info from Firestore
+
             .onAppear {
                 fetchUserInfo()
             }
         }
-        // Listen for "CapturePhoto" notification to call capturePhoto()
         .onReceive(NotificationCenter.default.publisher(for: Notification.Name("CapturePhoto"))) { _ in
             if let cameraVC = findCameraViewController() {
                 cameraVC.capturePhoto()
@@ -204,7 +198,7 @@ struct Camera: View {
         return nil
     }
     
-    // Fetch the user’s username & profileImageURL from Firestore
+    // Fetch current user's info from Firestore
     private func fetchUserInfo() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -219,13 +213,13 @@ struct Camera: View {
         }
     }
     
-    // Store the captured photo in Firestore as a subcollection "Picture"
+    // Upload the captured photo and update the group document's image URL
     private func storePhotoInFirestore(imageData: Data) {
         guard let uid = Auth.auth().currentUser?.uid,
               !username.isEmpty,
-              !profileImageURL.isEmpty
-        else {
-            print("No user info or not logged in.")
+              !profileImageURL.isEmpty,
+              let groupRef = groupRef else {
+            print("No user info, not logged in, or groupRef missing.")
             return
         }
         
@@ -235,7 +229,6 @@ struct Camera: View {
             .collection("Picture")
             .document()
         
-        // Upload to Firebase Storage
         let storageRef = Storage.storage().reference()
             .child("pictures/\(uid)/\(pictureRef.documentID).jpg")
         
@@ -244,7 +237,6 @@ struct Camera: View {
                 print("Error uploading image: \(error)")
                 return
             }
-            // Get download URL
             storageRef.downloadURL { url, error in
                 if let error = error {
                     print("Error fetching download URL: \(error)")
@@ -252,19 +244,12 @@ struct Camera: View {
                 }
                 guard let downloadURL = url else { return }
                 
-                // Save doc in Firestore with user info
-                let data: [String: Any] = [
-                    "imageURL": downloadURL.absoluteString,
-                    "username": self.username,
-                    "profileImageURL": self.profileImageURL,
-                    "timestamp": FieldValue.serverTimestamp()
-                ]
-                pictureRef.setData(data) { error in
-                    if let error = error {
-                        print("Error saving to Firestore: \(error)")
+                // Update the existing group document with the photo URL
+                groupRef.updateData(["groupImageURL": downloadURL.absoluteString]) { err in
+                    if let err = err {
+                        print("Error updating group image: \(err)")
                     } else {
-                        print("Successfully saved photo in subcollection 'Picture'")
-                        // Navigate to GroupChat
+                        print("Group image updated successfully.")
                         self.navigateToGroupChat = true
                     }
                 }
@@ -274,5 +259,5 @@ struct Camera: View {
 }
 
 #Preview {
-    Camera()
+    Camera(groupRef: nil)
 }

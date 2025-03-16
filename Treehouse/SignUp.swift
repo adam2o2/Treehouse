@@ -202,10 +202,24 @@ struct SignUp: View {
             .onAppear {
                 imagesAppeared = true
                 triggerHaptic()
-                // Check if a user is already signed in. If so, navigate to Home.
-                if Auth.auth().currentUser != nil {
-                    isExistingUser = true
-                    isUserAuthenticated = true
+                // If a user is already signed in, check if their Firestore document exists.
+                if let currentUser = Auth.auth().currentUser {
+                    let db = Firestore.firestore()
+                    db.collection("users").document(currentUser.uid).getDocument { document, error in
+                        if let document = document, document.exists {
+                            // User data exists: navigate to Home.
+                            isExistingUser = true
+                            isUserAuthenticated = true
+                        } else {
+                            // No Firestore data found; sign out to allow a fresh sign up.
+                            do {
+                                try Auth.auth().signOut()
+                                isUserAuthenticated = false
+                            } catch {
+                                print("Error signing out: \(error.localizedDescription)")
+                            }
+                        }
+                    }
                 }
             }
             .onDisappear {

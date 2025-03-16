@@ -8,23 +8,25 @@
 import SwiftUI
 import Firebase
 import FirebaseAuth
+import FirebaseFirestore
 
 struct GroupChat: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var navigateToHome: Bool = false   // State variable for navigation
+    @State private var navigateToHome: Bool = false   // For navigation
     
-    @State private var latestImageURL: String = ""
+    @State private var groupImageURL: String = ""       // Fetched from the group doc
     @State private var username: String = ""
     @State private var profileImageURL: String = ""
+    
+    let groupId: String   // Group document ID passed from Home
     
     var body: some View {
         ZStack {
             Color.white.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                
+                // Top bar with a custom back button
                 HStack {
-                    // Left chevron (custom back button)
                     Button(action: {
                         navigateToHome = true
                     }) {
@@ -35,14 +37,12 @@ struct GroupChat: View {
                     
                     Spacer()
                     
-                    // Center: "Sassy Captions"
                     Text("Sassy Captions")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.black)
                     
                     Spacer()
                     
-                    // Right: "18:00"
                     Text("18:00")
                         .font(.system(size: 16, weight: .medium, design: .rounded))
                         .foregroundColor(.black)
@@ -52,16 +52,14 @@ struct GroupChat: View {
                 
                 Spacer(minLength: 20)
                 
+                // Main group image container
                 ZStack(alignment: .topLeading) {
-                    
-                    // Background rounded rectangle + the fetched image
                     RoundedRectangle(cornerRadius: 16)
                         .fill(Color.white)
                         .frame(width: 300, height: 450)
                         .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
                         .overlay(
-                            // The user's latest image from Firestore
-                            AsyncImage(url: URL(string: latestImageURL)) { image in
+                            AsyncImage(url: URL(string: groupImageURL)) { image in
                                 image
                                     .resizable()
                                     .scaledToFill()
@@ -72,9 +70,8 @@ struct GroupChat: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                         )
                     
-                    // Top-left corner: user’s profile image + username (in white)
+                    // User's profile image + username overlay
                     HStack(spacing: 6) {
-                        // Profile image
                         AsyncImage(url: URL(string: profileImageURL)) { phase in
                             if let img = phase.image {
                                 img.resizable()
@@ -86,7 +83,6 @@ struct GroupChat: View {
                         .frame(width: 33, height: 33)
                         .clipShape(Circle())
                         
-                        // Username in white
                         Text(username.isEmpty ? "Hasque" : username)
                             .font(.system(size: 14, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
@@ -102,29 +98,17 @@ struct GroupChat: View {
                 
                 Spacer(minLength: 30)
                 
+                // Bottom bar with a waiting status and a camera button
                 HStack(spacing: 12) {
-                    
-                    // Pill with "Waiting on..." + 3 circles
                     HStack(spacing: 8) {
                         Text("Waiting on...")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(.black)
                         
-                        // ZStack to control overlap order:
-                        // The right circle is drawn first (behind),
-                        // the left circle is drawn last (on top).
                         ZStack {
-                            // Right circle (behind)
-                            circleView()
-                                .offset(x: 35)
-                            
-                            // Middle circle
-                            circleView()
-                                .offset(x: 15)
-                            
-                            // Left circle (drawn last, so on top)
-                            circleView()
-                                .offset(x: -5)
+                            circleView().offset(x: 35)
+                            circleView().offset(x: 15)
+                            circleView().offset(x: -5)
                         }
                         .offset(x: -1)
                         .frame(width: 65, height: 35)
@@ -138,9 +122,8 @@ struct GroupChat: View {
                     
                     Spacer()
                     
-                    // Camera icon in a pill
                     Button(action: {
-                        // Add your camera logic here if needed
+                        // Add any camera logic if needed
                     }) {
                         Image(systemName: "camera")
                             .font(.system(size: 24))
@@ -157,28 +140,27 @@ struct GroupChat: View {
                 .padding(.bottom, 20)
             }
             
-            // Hidden NavigationLink activated by the chevron tap.
+            // Hidden NavigationLink for back navigation
             NavigationLink(destination: Home().navigationBarBackButtonHidden(true), isActive: $navigateToHome) {
                 EmptyView()
             }
             .hidden()
         }
-        .navigationBarBackButtonHidden(true)  // Hide default back button
+        .navigationBarBackButtonHidden(true)
         .onAppear {
-            fetchLatestPicture()
+            fetchGroupImage()
             fetchUserInfo()
         }
     }
 }
 
 extension GroupChat {
-    // A single gray circle with a white stroke
+    // Helper view for a circle with a white stroke
     private func circleView() -> some View {
         ZStack {
             Circle()
                 .stroke(Color.white, lineWidth: 4)
                 .frame(width: 35, height: 35)
-            
             Circle()
                 .fill(Color.gray)
                 .frame(width: 35, height: 35)
@@ -187,28 +169,27 @@ extension GroupChat {
 }
 
 extension GroupChat {
-    // Fetch the most recent image from subcollection "Picture"
-    private func fetchLatestPicture() {
+    // Fetch the group document to retrieve the group's image URL
+    private func fetchGroupImage() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
-        
-        db.collection("users")
+        let docRef = db.collection("users")
             .document(uid)
-            .collection("Picture")
-            .order(by: "timestamp", descending: true)
-            .limit(to: 1)
-            .getDocuments { snapshot, error in
-                if let error = error {
-                    print("Error fetching latest picture: \(error)")
-                    return
-                }
-                guard let doc = snapshot?.documents.first else { return }
-                let data = doc.data()
-                self.latestImageURL = data["imageURL"] as? String ?? ""
+            .collection("groups")
+            .document(groupId)
+        
+        docRef.getDocument { snapshot, error in
+            if let error = error {
+                print("Error fetching group document: \(error)")
+                return
             }
+            if let data = snapshot?.data() {
+                self.groupImageURL = data["groupImageURL"] as? String ?? ""
+            }
+        }
     }
     
-    // Fetch user info (username, profileImageURL) from Firestore
+    // Fetch current user's info (username & profile image)
     private func fetchUserInfo() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -217,13 +198,15 @@ extension GroupChat {
                 print("Error fetching user info: \(error)")
                 return
             }
-            guard let data = snapshot?.data() else { return }
-            self.username = data["username"] as? String ?? ""
-            self.profileImageURL = data["profileImageURL"] as? String ?? ""
+            if let data = snapshot?.data() {
+                self.username = data["username"] as? String ?? ""
+                self.profileImageURL = data["profileImageURL"] as? String ?? ""
+            }
         }
     }
 }
 
 #Preview {
-    GroupChat()
+    // For preview purposes, pass a dummy groupId.
+    GroupChat(groupId: "dummyGroupId")
 }

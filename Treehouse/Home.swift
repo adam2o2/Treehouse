@@ -8,11 +8,20 @@
 import SwiftUI
 import Firebase
 import FirebaseFirestore
+import FirebaseAuth
 
 struct User: Identifiable {
     let id: String
     let name: String
     let profileImageURL: String
+}
+
+struct GroupModel: Identifiable {
+    let id: String
+    let groupName: String
+    let groupImageURL: String
+    let memberImageURLs: [String]
+    let memberCount: Int
 }
 
 class UsersViewModel: ObservableObject {
@@ -27,6 +36,7 @@ class UsersViewModel: ObservableObject {
     ]
     
     func fetchUsers() {
+        // Simulate fetching from a local mapping
         users = userMappings.map { user in
             User(id: UUID().uuidString,
                  name: user.name,
@@ -35,10 +45,51 @@ class UsersViewModel: ObservableObject {
     }
 }
 
+class GroupsViewModel: ObservableObject {
+    @Published var groups: [GroupModel] = []
+    
+    func fetchGroups() {
+        guard let uid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        
+        db.collection("users")
+            .document(uid)
+            .collection("groups")
+            .order(by: "timestamp", descending: true)
+            .addSnapshotListener { snapshot, error in
+                if let error = error {
+                    print("Error fetching groups: \(error)")
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else { return }
+                self.groups = documents.map { doc in
+                    let data = doc.data()
+                    
+                    let groupName = data["groupName"] as? String ?? "Untitled"
+                    let groupImageURL = data["groupImageURL"] as? String ?? ""
+                    let memberImageURLs = data["members"] as? [String] ?? []
+                    
+                    return GroupModel(
+                        id: doc.documentID,
+                        groupName: groupName,
+                        groupImageURL: groupImageURL,
+                        memberImageURLs: memberImageURLs,
+                        memberCount: memberImageURLs.count
+                    )
+                }
+            }
+    }
+}
+
 struct Home: View {
     @State private var showHalfSheet = false
     @State private var navigateToCamera = false
-
+    @State private var groupRef: DocumentReference? = nil
+    
+    // ViewModel for fetching and displaying groups
+    @StateObject private var groupsViewModel = GroupsViewModel()
+    
     var body: some View {
         NavigationView {
             ZStack {
@@ -50,6 +101,18 @@ struct Home: View {
                         .foregroundColor(.black)
                         .padding(.top, 50)
                         .padding(.leading, 20)
+                    
+                    // Display the groups as cards
+                    ScrollView {
+                        VStack(spacing: 20) {
+                            ForEach(groupsViewModel.groups) { group in
+                                NavigationLink(destination: GroupChat(groupId: group.id)) {
+                                    GroupCardView(group: group)
+                                }
+                            }
+                        }
+                        .padding(.top, 0)
+                    }
                     
                     Text("Create a group chat below")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -83,37 +146,131 @@ struct Home: View {
                 }
             }
             .sheet(isPresented: $showHalfSheet) {
-                HalfSheetView(navigateToCamera: $navigateToCamera)
+                HalfSheetView(navigateToCamera: $navigateToCamera, groupRef: $groupRef)
                     .presentationDetents([.medium])
                     .interactiveDismissDisabled(true)
             }
-            // Updated NavigationLink using your snippet, switching destination to Camera.
             .background(
-                NavigationLink(destination: Camera().navigationBarBackButtonHidden(true),
+                NavigationLink(destination: Camera(groupRef: groupRef)
+                                .navigationBarBackButtonHidden(true),
                                isActive: $navigateToCamera) {
                     EmptyView()
                 }
+            )
+            .onAppear {
+                groupsViewModel.fetchGroups()
+            }
+        }
+    }
+}
+
+struct GroupCardView: View {
+    let group: GroupModel
+    @State private var showUserAlert = false
+    @State private var tappedUser: String = ""
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // Top: Avatars, member count, group name
+            VStack(spacing: 8) {
+                HStack(spacing: -20) {
+                    ForEach(Array(group.memberImageURLs.prefix(4).enumerated()), id: \.element) { index, imageURL in
+                        Image(imageURL)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 60, height: 60)
+                            .clipShape(Circle())
+                            .overlay(
+                                Circle()
+                                    .stroke(Color.white, lineWidth: 4)
+                            )
+                            // Assign a higher z-index for the left-most circle
+                            .zIndex(Double(group.memberImageURLs.prefix(4).count - index))
+                            .onTapGesture {
+                                tappedUser = imageURL
+                                showUserAlert = true
+                            }
+                    }
+                }
+                .padding(.top, 16)
+                
+                Text("\(group.memberCount) members")
+                    .font(.system(size: 14, weight: .medium, design: .rounded))
+                    .foregroundColor(.gray)
+                    .offset(y: 5)
+                
+                Text(group.groupName)
+                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .foregroundColor(.black)
+                    .padding(.bottom, 16)
+            }
+            .frame(maxWidth: .infinity, minHeight: 180) // Increased the minHeight for a taller box
+            
+            Divider()
+            
+            // Bottom: Sassy caption placeholder
+            Text("Sassy captions")
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundColor(.black)
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .padding(.vertical, 8)
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white)
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
+        )
+        .padding(.horizontal, 36)
+        .alert(isPresented: $showUserAlert) {
+            Alert(
+                title: Text("Avatar Tapped"),
+                message: Text("You tapped on: \(tappedUser)"),
+                dismissButton: .default(Text("OK"))
             )
         }
     }
 }
 
+
+struct GroupCardView_Previews: PreviewProvider {
+    static var previews: some View {
+        let sampleGroup = GroupModel(
+            id: "sampleId",
+            groupName: "Sample Group",
+            groupImageURL: "sampleImage", // Use a valid image name from your assets or a placeholder
+            memberImageURLs: ["Adam", "Bode", "Hasque", "Abe"],
+            memberCount: 4
+        )
+        return GroupCardView(group: sampleGroup)
+            .previewLayout(.sizeThatFits)
+    }
+}
+
+
 struct HalfSheetView: View {
     @StateObject private var viewModel = UsersViewModel()
     @Environment(\.horizontalSizeClass) var sizeClass
     @Environment(\.colorScheme) var colorScheme
+    
     @Binding var navigateToCamera: Bool
+    @Binding var groupRef: DocumentReference?
+    
     @State private var selectedUsers: [String] = []
     @State private var isNamingGroup = false
     @Environment(\.dismiss) private var dismiss
-
+    @State private var groupName: String = ""
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             if isNamingGroup {
-                GroupNameView(onDone: {
-                    dismiss() // Dismiss the half-sheet
-                    navigateToCamera = true // Trigger navigation to Camera in Home
-                })
+                GroupNameView(groupName: $groupName,
+                              selectedUsers: selectedUsers,
+                              onDone: { docRef in
+                                  // Save the group document reference, dismiss and navigate
+                                  self.groupRef = docRef
+                                  dismiss()
+                                  navigateToCamera = true
+                              })
             } else {
                 VStack(spacing: 0) {
                     // Top handle bar
@@ -122,10 +279,9 @@ struct HalfSheetView: View {
                         .frame(width: 40, height: 5)
                         .padding(.top, 8)
                     
-                    // Horizontal avatars (Dynamic Selection)
+                    // Horizontal avatars for selected users
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
-                            // Show selected user profile images
                             ForEach(selectedUsers, id: \.self) { profile in
                                 Image(profile)
                                     .resizable()
@@ -133,7 +289,7 @@ struct HalfSheetView: View {
                                     .frame(width: 40, height: 40)
                                     .clipShape(Circle())
                             }
-                            // Remaining empty placeholders
+                            // Empty placeholders
                             ForEach(0..<(7 - selectedUsers.count), id: \.self) { _ in
                                 Circle()
                                     .strokeBorder(Color.gray.opacity(0.2),
@@ -146,7 +302,7 @@ struct HalfSheetView: View {
                     }
                     .padding(.top, 16)
                     
-                    // User list (Scrolls behind the button)
+                    // List of users
                     ScrollView {
                         VStack(spacing: 0) {
                             ForEach(viewModel.users) { user in
@@ -179,9 +335,9 @@ struct HalfSheetView: View {
                     }
                 }
                 
-                // Continue button
+                // Continue button to switch to group naming view
                 Button(action: {
-                    isNamingGroup = true // Instantly switch to Group Naming View
+                    isNamingGroup = true
                 }) {
                     HStack {
                         Spacer()
@@ -216,10 +372,12 @@ struct HalfSheetView: View {
 }
 
 struct GroupNameView: View {
-    @State private var groupName = ""
+    @Binding var groupName: String
+    let selectedUsers: [String]
     @FocusState private var isKeyboardActive: Bool
-    var onDone: () -> Void
-
+    // onDone returns the created DocumentReference (or nil on error)
+    var onDone: (DocumentReference?) -> Void
+    
     var body: some View {
         VStack {
             // Top handle bar
@@ -227,7 +385,7 @@ struct GroupNameView: View {
                 .fill(Color.gray.opacity(0.3))
                 .frame(width: 40, height: 5)
                 .padding(.top, 8)
-
+            
             TextField("Name your group chat", text: $groupName)
                 .padding()
                 .background(Color.gray.opacity(0.1))
@@ -235,18 +393,51 @@ struct GroupNameView: View {
                 .padding(.horizontal)
                 .padding(.top, 10)
                 .focused($isKeyboardActive)
-                .submitLabel(.done) // Sets the return key to blue "Done"
+                .submitLabel(.done)
                 .onSubmit {
-                    onDone() // Dismiss the sheet and trigger navigation
+                    saveGroupToFirestore { docRef in
+                        onDone(docRef)
+                    }
                 }
-
+            
             Spacer()
         }
         .background(Color.white.ignoresSafeArea())
         .ignoresSafeArea(.keyboard)
         .onAppear {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                isKeyboardActive = true // Automatically opens the keyboard
+                isKeyboardActive = true
+            }
+        }
+    }
+    
+    private func saveGroupToFirestore(completion: @escaping (DocumentReference?) -> Void) {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            completion(nil)
+            return
+        }
+        let db = Firestore.firestore()
+        
+        let groupData: [String: Any] = [
+            "groupName": groupName,
+            "members": selectedUsers,
+            "groupImageURL": "", // Placeholder until photo is captured
+            "timestamp": FieldValue.serverTimestamp()
+        ]
+        
+        // Create a new document with an auto-generated ID and set its data
+        let newDocRef = db.collection("users")
+            .document(uid)
+            .collection("groups")
+            .document()
+        
+        newDocRef.setData(groupData) { error in
+            if let error = error {
+                print("Error saving group: \(error)")
+                completion(nil)
+            } else {
+                print("Group saved successfully.")
+                completion(newDocRef)
             }
         }
     }
