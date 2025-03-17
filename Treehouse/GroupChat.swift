@@ -17,6 +17,7 @@ struct GroupChat: View {
     @State private var groupImageURL: String = ""       // Fetched from the group doc
     @State private var username: String = ""
     @State private var profileImageURL: String = ""
+    @State private var groupMembers: [String] = []      // Fetched members array from the group document
     
     let groupId: String   // Group document ID passed from Home
     
@@ -98,20 +99,25 @@ struct GroupChat: View {
                 
                 Spacer(minLength: 30)
                 
-                // Bottom bar with a waiting status and a camera button
+                // Bottom bar with a waiting status and a camera button.
+                // The group members (selected when creating the group) are fetched from Firestore and displayed here.
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {
                         Text("Waiting on...")
                             .font(.system(size: 18, weight: .bold, design: .rounded))
                             .foregroundColor(.black)
                         
-                        ZStack {
-                            circleView().offset(x: 35)
-                            circleView().offset(x: 15)
-                            circleView().offset(x: -5)
+                        HStack(spacing: -15) {
+                            ForEach(groupMembers, id: \.self) { member in
+                                Image(member)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 35, height: 35)
+                                    .clipShape(Circle())
+                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                            }
                         }
-                        .offset(x: -1)
-                        .frame(width: 65, height: 35)
+                        .frame(height: 35)
                     }
                     .padding(.horizontal, 42)
                     .padding(.vertical, 23)
@@ -131,29 +137,15 @@ struct GroupChat: View {
         }
         .navigationBarBackButtonHidden(true)
         .onAppear {
-            fetchGroupImage()
+            fetchGroupDocument()
             fetchUserInfo()
         }
     }
 }
 
 extension GroupChat {
-    // Helper view for a circle with a white stroke
-    private func circleView() -> some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white, lineWidth: 4)
-                .frame(width: 35, height: 35)
-            Circle()
-                .fill(Color.gray)
-                .frame(width: 35, height: 35)
-        }
-    }
-}
-
-extension GroupChat {
-    // Fetch the group document to retrieve the group's image URL
-    private func fetchGroupImage() {
+    // Fetch the group document to retrieve the group's image URL and members
+    private func fetchGroupDocument() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
         let docRef = db.collection("users")
@@ -168,6 +160,7 @@ extension GroupChat {
             }
             if let data = snapshot?.data() {
                 self.groupImageURL = data["groupImageURL"] as? String ?? ""
+                self.groupMembers = data["members"] as? [String] ?? []
             }
         }
     }
