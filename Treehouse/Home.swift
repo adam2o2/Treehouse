@@ -148,7 +148,6 @@ struct Home: View {
             .sheet(isPresented: $showHalfSheet) {
                 HalfSheetView(navigateToCamera: $navigateToCamera, groupRef: $groupRef)
                     .presentationDetents([.medium])
-                    .interactiveDismissDisabled(true)
             }
             .background(
                 NavigationLink(destination: Camera(groupRef: groupRef)
