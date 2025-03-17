@@ -118,23 +118,6 @@ struct GroupChat: View {
                     .background(Color.white)
                     .cornerRadius(50)
                     .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                    .offset(x: 10)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        // Add any camera logic if needed
-                    }) {
-                        Image(systemName: "camera")
-                            .font(.system(size: 24))
-                            .foregroundColor(.black)
-                            .padding(16)
-                    }
-                    .frame(width: 70, height: 70)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
-                    .offset(x: -5)
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 20)
