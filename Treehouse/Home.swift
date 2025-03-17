@@ -169,15 +169,35 @@ struct GroupCardView: View {
     @State private var showUserAlert = false
     @State private var tappedUser: String = ""
     
+    // Helper view to load images from URL or fallback to asset name
+    @ViewBuilder
+    private func loadImage(from imageURL: String) -> some View {
+        if let url = URL(string: imageURL), imageURL.starts(with: "http") {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else if phase.error != nil {
+                    Image(systemName: "person.fill")
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ProgressView()
+                }
+            }
+        } else {
+            Image(imageURL)
+                .resizable()
+                .scaledToFill()
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Top: Avatars, member count, group name
             VStack(spacing: 8) {
                 HStack(spacing: -20) {
                     ForEach(Array(group.memberImageURLs.prefix(4).enumerated()), id: \.element) { index, imageURL in
-                        Image(imageURL)
-                            .resizable()
-                            .scaledToFill()
+                        loadImage(from: imageURL)
                             .frame(width: 60, height: 60)
                             .clipShape(Circle())
                             .overlay(
@@ -204,7 +224,7 @@ struct GroupCardView: View {
                     .foregroundColor(.black)
                     .padding(.bottom, 16)
             }
-            .frame(maxWidth: .infinity, minHeight: 180) // Increased the minHeight for a taller box
+            .frame(maxWidth: .infinity, minHeight: 180)
             
             Divider()
             
@@ -260,6 +280,28 @@ struct HalfSheetView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var groupName: String = ""
     
+    // Helper view to load images from URL or asset
+    @ViewBuilder
+    private func loadImage(from imageURL: String) -> some View {
+        if let url = URL(string: imageURL), imageURL.starts(with: "http") {
+            AsyncImage(url: url) { phase in
+                if let image = phase.image {
+                    image.resizable().scaledToFill()
+                } else if phase.error != nil {
+                    Image(systemName: "person.fill")
+                        .resizable()
+                        .scaledToFill()
+                } else {
+                    ProgressView()
+                }
+            }
+        } else {
+            Image(imageURL)
+                .resizable()
+                .scaledToFill()
+        }
+    }
+    
     var body: some View {
         ZStack(alignment: .bottom) {
             if isNamingGroup {
@@ -283,9 +325,7 @@ struct HalfSheetView: View {
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
                             ForEach(selectedUsers, id: \.self) { profile in
-                                Image(profile)
-                                    .resizable()
-                                    .scaledToFill()
+                                loadImage(from: profile)
                                     .frame(width: 40, height: 40)
                                     .clipShape(Circle())
                             }
@@ -307,9 +347,7 @@ struct HalfSheetView: View {
                         VStack(spacing: 0) {
                             ForEach(viewModel.users) { user in
                                 HStack {
-                                    Image(user.profileImageURL)
-                                        .resizable()
-                                        .scaledToFill()
+                                    loadImage(from: user.profileImageURL)
                                         .frame(width: 60, height: 60)
                                         .clipShape(Circle())
                                     
@@ -418,26 +456,41 @@ struct GroupNameView: View {
         }
         let db = Firestore.firestore()
         
-        let groupData: [String: Any] = [
-            "groupName": groupName,
-            "members": selectedUsers,
-            "groupImageURL": "", // Placeholder until photo is captured
-            "timestamp": FieldValue.serverTimestamp()
-        ]
-        
-        // Create a new document with an auto-generated ID and set its data
-        let newDocRef = db.collection("users")
-            .document(uid)
-            .collection("groups")
-            .document()
-        
-        newDocRef.setData(groupData) { error in
-            if let error = error {
-                print("Error saving group: \(error)")
-                completion(nil)
-            } else {
-                print("Group saved successfully.")
-                completion(newDocRef)
+        // First, fetch the current user's profile image from Firestore.
+        let userDocRef = db.collection("users").document(uid)
+        userDocRef.getDocument { document, error in
+            var currentUserImage = ""
+            if let document = document,
+               document.exists,
+               let imageUrl = document.data()?["profileImageURL"] as? String {
+                currentUserImage = imageUrl
+            }
+            // Merge the selected users with the current user's profile image.
+            var members = selectedUsers
+            if !members.contains(currentUserImage) && currentUserImage != "" {
+                members.insert(currentUserImage, at: 0)
+            }
+            // Use the current user's image as the group image.
+            let groupData: [String: Any] = [
+                "groupName": groupName,
+                "members": members,
+                "groupImageURL": currentUserImage,
+                "timestamp": FieldValue.serverTimestamp()
+            ]
+            
+            let newDocRef = db.collection("users")
+                .document(uid)
+                .collection("groups")
+                .document()
+            
+            newDocRef.setData(groupData) { error in
+                if let error = error {
+                    print("Error saving group: \(error)")
+                    completion(nil)
+                } else {
+                    print("Group saved successfully.")
+                    completion(newDocRef)
+                }
             }
         }
     }
