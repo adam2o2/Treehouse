@@ -71,14 +71,16 @@ struct GroupChat: View {
                             .clipShape(RoundedRectangle(cornerRadius: 16))
                         )
                     
-                    // User's profile image + username overlay
+                    // User's profile image + username overlay (the creator's image)
                     HStack(spacing: 6) {
                         AsyncImage(url: URL(string: profileImageURL)) { phase in
                             if let img = phase.image {
                                 img.resizable()
                                     .scaledToFill()
-                            } else {
+                            } else if phase.error != nil {
                                 Circle().fill(Color.gray)
+                            } else {
+                                ProgressView()
                             }
                         }
                         .frame(width: 33, height: 33)
@@ -100,7 +102,7 @@ struct GroupChat: View {
                 Spacer(minLength: 30)
                 
                 // Bottom bar with a waiting status and a camera button.
-                // The group members (selected when creating the group) are fetched from Firestore and displayed here.
+                // The group members (excluding the creator) are displayed here.
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {
                         Text("Waiting on...")
@@ -109,12 +111,21 @@ struct GroupChat: View {
                         
                         HStack(spacing: -15) {
                             ForEach(groupMembers, id: \.self) { member in
-                                Image(member)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 35, height: 35)
-                                    .clipShape(Circle())
-                                    .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                                AsyncImage(url: URL(string: member)) { phase in
+                                    if let img = phase.image {
+                                        img.resizable()
+                                            .scaledToFill()
+                                    } else if phase.error != nil {
+                                        Image(systemName: "person.fill")
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        ProgressView()
+                                    }
+                                }
+                                .frame(width: 35, height: 35)
+                                .clipShape(Circle())
+                                .overlay(Circle().stroke(Color.white, lineWidth: 2))
                             }
                         }
                         .frame(height: 35)
@@ -140,6 +151,12 @@ struct GroupChat: View {
             fetchGroupDocument()
             fetchUserInfo()
         }
+        // Once the current user's profile image is fetched, remove it from the waiting list.
+        .onChange(of: profileImageURL) { newValue in
+            if !newValue.isEmpty {
+                self.groupMembers = self.groupMembers.filter { $0 != newValue }
+            }
+        }
     }
 }
 
@@ -160,12 +177,13 @@ extension GroupChat {
             }
             if let data = snapshot?.data() {
                 self.groupImageURL = data["groupImageURL"] as? String ?? ""
+                // Initially set groupMembers as fetched from Firestore.
                 self.groupMembers = data["members"] as? [String] ?? []
             }
         }
     }
     
-    // Fetch current user's info (username & profile image)
+    // Fetch current user's info (username & profile image).
     private func fetchUserInfo() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()

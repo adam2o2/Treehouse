@@ -27,20 +27,27 @@ struct GroupModel: Identifiable {
 class UsersViewModel: ObservableObject {
     @Published var users: [User] = []
     
-    private let userMappings: [(name: String, image: String)] = [
-        ("Adam May", "Adam"),
-        ("Hasque May", "Hasque"),
-        ("Bode Alaka", "Bode"),
-        ("Rex May", "Rex"),
-        ("Abraham May", "Abe")
-    ]
-    
     func fetchUsers() {
-        // Simulate fetching from a local mapping
-        users = userMappings.map { user in
-            User(id: UUID().uuidString,
-                 name: user.name,
-                 profileImageURL: user.image)
+        guard let currentUid = Auth.auth().currentUser?.uid else { return }
+        let db = Firestore.firestore()
+        db.collection("users").getDocuments { snapshot, error in
+            if let error = error {
+                print("Error fetching users: \(error)")
+                return
+            }
+            guard let documents = snapshot?.documents else { return }
+            DispatchQueue.main.async {
+                self.users = documents.compactMap { doc in
+                    // Exclude the current user
+                    if doc.documentID == currentUid {
+                        return nil
+                    }
+                    let data = doc.data()
+                    let username = data["username"] as? String ?? "Unknown"
+                    let profileImageURL = data["profileImageURL"] as? String ?? ""
+                    return User(id: doc.documentID, name: username, profileImageURL: profileImageURL)
+                }
+            }
         }
     }
 }
@@ -146,7 +153,7 @@ struct Home: View {
                         Spacer()
                     }
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.001)) // Transparent background to allow interaction behind if needed
+                    .background(Color.white.opacity(0.001))
                 }
                 .padding(.bottom, 20)
             }
@@ -246,7 +253,7 @@ struct GroupCardView_Previews: PreviewProvider {
         let sampleGroup = GroupModel(
             id: "sampleId",
             groupName: "Sample Group",
-            groupImageURL: "sampleImage", // Use a valid image name from your assets or a placeholder
+            groupImageURL: "sampleImage",
             memberImageURLs: ["Adam", "Bode", "Hasque", "Abe"],
             memberCount: 4
         )
@@ -331,7 +338,7 @@ struct HalfSheetView: View {
                     }
                     .padding(.top, 16)
                     
-                    // List of users
+                    // List of users from Firebase (excluding the current user)
                     ScrollView {
                         VStack(spacing: 0) {
                             ForEach(viewModel.users) { user in
