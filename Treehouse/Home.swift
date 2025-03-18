@@ -195,7 +195,7 @@ struct GroupCardView: View {
             // Top: Avatars, member count, group name
             VStack(spacing: 8) {
                 HStack(spacing: -20) {
-                    ForEach(Array(group.memberImageURLs.prefix(4).enumerated()), id: \.element) { index, imageURL in
+                    ForEach(Array(group.memberImageURLs.enumerated()), id: \.element) { index, imageURL in
                         loadImage(from: imageURL)
                             .frame(width: 60, height: 60)
                             .clipShape(Circle())
@@ -203,8 +203,7 @@ struct GroupCardView: View {
                                 Circle()
                                     .stroke(Color.white, lineWidth: 4)
                             )
-                            // Assign a higher z-index for the left-most circle
-                            .zIndex(Double(group.memberImageURLs.prefix(4).count - index))
+                            .zIndex(Double(group.memberImageURLs.count - index))
                             .onTapGesture {
                                 tappedUser = imageURL
                                 showUserAlert = true
