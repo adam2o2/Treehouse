@@ -95,16 +95,18 @@ struct Home: View {
             ZStack {
                 Color.white.ignoresSafeArea()
                 
-                VStack(alignment: .leading) {
+                VStack(spacing: 0) {
+                    // Fixed header at the top
                     Text("Treehouse")
                         .font(.system(size: 56, weight: .bold, design: .rounded))
                         .foregroundColor(.black)
                         .padding(.top, 50)
                         .padding(.leading, 20)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    // Display the groups as cards
+                    // Scrollable group chat cards only
                     ScrollView {
-                        VStack(spacing: 20) {
+                        VStack(spacing: 50) {
                             ForEach(groupsViewModel.groups) { group in
                                 NavigationLink(destination: GroupChat(groupId: group.id)) {
                                     GroupCardView(group: group)
@@ -112,15 +114,16 @@ struct Home: View {
                             }
                         }
                         .padding(.top, 0)
+                        // Extra bottom padding so cards can scroll behind the fixed bottom overlay
+                        .padding(.bottom, 120)
                     }
-                    
-                    Text("Create a group chat below")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundColor(.black)
-                        .frame(maxWidth: .infinity)
-                        .multilineTextAlignment(.center)
-                        .offset(y: 260)
-                    
+                    // Fill remaining space to ensure the ScrollView reaches the bottom
+                    .frame(maxHeight: .infinity)
+                }
+                .edgesIgnoringSafeArea(.bottom)
+                
+                // Fixed bottom overlay for buttons
+                VStack {
                     Spacer()
                     
                     HStack {
@@ -142,8 +145,10 @@ struct Home: View {
                             .foregroundColor(.gray)
                         Spacer()
                     }
-                    .padding(.bottom, 20)
+                    .padding(.vertical, 10)
+                    .background(Color.white.opacity(0.001)) // Transparent background to allow interaction behind if needed
                 }
+                .padding(.bottom, 20)
             }
             .sheet(isPresented: $showHalfSheet) {
                 HalfSheetView(navigateToCamera: $navigateToCamera, groupRef: $groupRef)
