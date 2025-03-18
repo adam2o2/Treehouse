@@ -170,9 +170,7 @@ struct Home: View {
 
 struct GroupCardView: View {
     let group: GroupModel
-    @State private var showUserAlert = false
-    @State private var tappedUser: String = ""
-    
+
     // Helper view to load images from URL or fallback to asset name
     @ViewBuilder
     private func loadImage(from imageURL: String) -> some View {
@@ -208,11 +206,6 @@ struct GroupCardView: View {
                                 Circle()
                                     .stroke(Color.white, lineWidth: 4)
                             )
-                            .zIndex(Double(group.memberImageURLs.count - index))
-                            .onTapGesture {
-                                tappedUser = imageURL
-                                showUserAlert = true
-                            }
                     }
                 }
                 .padding(.top, 16)
@@ -244,13 +237,6 @@ struct GroupCardView: View {
                 .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 10)
         )
         .padding(.horizontal, 36)
-        .alert(isPresented: $showUserAlert) {
-            Alert(
-                title: Text("Avatar Tapped"),
-                message: Text("You tapped on: \(tappedUser)"),
-                dismissButton: .default(Text("OK"))
-            )
-        }
     }
 }
 
