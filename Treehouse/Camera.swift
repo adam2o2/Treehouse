@@ -12,7 +12,6 @@ import FirebaseAuth
 import FirebaseStorage
 import FirebaseFirestore
 
-// MARK: - Camera View Controller
 
 class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
     var captureSession: AVCaptureSession?
@@ -73,7 +72,6 @@ class CameraViewController: UIViewController, AVCapturePhotoCaptureDelegate {
     }
 }
 
-// MARK: - CameraPreview (UIViewControllerRepresentable)
 
 struct CameraPreview: UIViewControllerRepresentable {
     var onPhotoCaptured: (Data) -> Void
@@ -89,7 +87,6 @@ struct CameraPreview: UIViewControllerRepresentable {
     }
 }
 
-// MARK: - Camera SwiftUI View
 
 struct Camera: View {
     @Environment(\.dismiss) private var dismiss
@@ -107,7 +104,7 @@ struct Camera: View {
                     // Camera area (top ~84%)
                     ZStack {
                         CameraPreview { imageData in
-                            // Once a photo is captured, upload and update group document
+                            // Once a photo is captured, upload and store it in the group's "sentImages" array
                             storePhotoInFirestore(imageData: imageData)
                         }
                         .frame(height: geo.size.height * 0.84)
@@ -164,7 +161,6 @@ struct Camera: View {
                     GroupChat(groupId: "")
                 }
             }
-
             .onAppear {
                 fetchUserInfo()
             }
@@ -213,11 +209,10 @@ struct Camera: View {
         }
     }
     
-    // Upload the captured photo and update the group document's image URL
+    // Upload the captured photo and append it (with uid + username) to the group's "sentImages" array
     private func storePhotoInFirestore(imageData: Data) {
         guard let uid = Auth.auth().currentUser?.uid,
               !username.isEmpty,
-              !profileImageURL.isEmpty,
               let groupRef = groupRef else {
             print("No user info, not logged in, or groupRef missing.")
             return
@@ -244,12 +239,20 @@ struct Camera: View {
                 }
                 guard let downloadURL = url else { return }
                 
-                // Update the existing group document with the photo URL
-                groupRef.updateData(["groupImageURL": downloadURL.absoluteString]) { err in
+                // We'll store an object with {uid, username, imageURL}
+                let newImageData: [String: Any] = [
+                    "uid": uid,
+                    "username": self.username,
+                    "imageURL": downloadURL.absoluteString
+                ]
+                
+                groupRef.updateData([
+                    "sentImages": FieldValue.arrayUnion([newImageData])
+                ]) { err in
                     if let err = err {
-                        print("Error updating group image: \(err)")
+                        print("Error appending to sentImages: \(err)")
                     } else {
-                        print("Group image updated successfully.")
+                        print("Successfully appended new image to sentImages.")
                         self.navigateToGroupChat = true
                     }
                 }

@@ -55,6 +55,7 @@ class UsersViewModel: ObservableObject {
 class GroupsViewModel: ObservableObject {
     @Published var groups: [GroupModel] = []
     
+    // Fetch groups from the current user's subcollection.
     func fetchGroups() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -262,6 +263,11 @@ struct GroupCardView_Previews: PreviewProvider {
     }
 }
 
+// A helper struct to store invited user info (UID and profile image URL)
+struct InvitedUser: Identifiable, Equatable {
+    let id: String
+    let profileImageURL: String
+}
 
 struct HalfSheetView: View {
     @StateObject private var viewModel = UsersViewModel()
@@ -271,32 +277,11 @@ struct HalfSheetView: View {
     @Binding var navigateToCamera: Bool
     @Binding var groupRef: DocumentReference?
     
-    @State private var selectedUsers: [String] = []
+    // Now store invited users as InvitedUser (UID and profile image URL)
+    @State private var selectedUsers: [InvitedUser] = []
     @State private var isNamingGroup = false
     @Environment(\.dismiss) private var dismiss
     @State private var groupName: String = ""
-    
-    // Helper view to load images from URL or asset
-    @ViewBuilder
-    private func loadImage(from imageURL: String) -> some View {
-        if let url = URL(string: imageURL), imageURL.starts(with: "http") {
-            AsyncImage(url: url) { phase in
-                if let image = phase.image {
-                    image.resizable().scaledToFill()
-                } else if phase.error != nil {
-                    Image(systemName: "person.fill")
-                        .resizable()
-                        .scaledToFill()
-                } else {
-                    ProgressView()
-                }
-            }
-        } else {
-            Image(imageURL)
-                .resizable()
-                .scaledToFill()
-        }
-    }
     
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -320,10 +305,20 @@ struct HalfSheetView: View {
                     // Horizontal avatars for selected users
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: 16) {
-                            ForEach(selectedUsers, id: \.self) { profile in
-                                loadImage(from: profile)
-                                    .frame(width: 40, height: 40)
-                                    .clipShape(Circle())
+                            ForEach(selectedUsers) { invited in
+                                AsyncImage(url: URL(string: invited.profileImageURL)) { phase in
+                                    if let image = phase.image {
+                                        image.resizable().scaledToFill()
+                                    } else if phase.error != nil {
+                                        Image(systemName: "person.fill")
+                                            .resizable()
+                                            .scaledToFill()
+                                    } else {
+                                        ProgressView()
+                                    }
+                                }
+                                .frame(width: 40, height: 40)
+                                .clipShape(Circle())
                             }
                             // Empty placeholders
                             ForEach(0..<(7 - selectedUsers.count), id: \.self) { _ in
@@ -332,7 +327,6 @@ struct HalfSheetView: View {
                                                   style: StrokeStyle(lineWidth: 2, dash: [4]))
                                     .frame(width: 40, height: 40)
                             }
-                            .offset(x: -3)
                         }
                         .padding(.horizontal)
                     }
@@ -343,9 +337,19 @@ struct HalfSheetView: View {
                         VStack(spacing: 0) {
                             ForEach(viewModel.users) { user in
                                 HStack {
-                                    loadImage(from: user.profileImageURL)
-                                        .frame(width: 60, height: 60)
-                                        .clipShape(Circle())
+                                    AsyncImage(url: URL(string: user.profileImageURL)) { phase in
+                                        if let image = phase.image {
+                                            image.resizable().scaledToFill()
+                                        } else if phase.error != nil {
+                                            Image(systemName: "person.fill")
+                                                .resizable()
+                                                .scaledToFill()
+                                        } else {
+                                            ProgressView()
+                                        }
+                                    }
+                                    .frame(width: 60, height: 60)
+                                    .clipShape(Circle())
                                     
                                     Text(user.name)
                                         .font(.system(size: 18, weight: .bold))
@@ -354,11 +358,11 @@ struct HalfSheetView: View {
                                     
                                     Spacer()
                                     
-                                    Image(systemName: selectedUsers.contains(user.profileImageURL) ? "checkmark.circle.fill" : "plus.circle.fill")
+                                    Image(systemName: selectedUsers.contains(where: { $0.id == user.id }) ? "checkmark.circle.fill" : "plus.circle.fill")
                                         .font(.system(size: 30))
-                                        .foregroundColor(selectedUsers.contains(user.profileImageURL) ? .green : .gray.opacity(0.5))
+                                        .foregroundColor(selectedUsers.contains(where: { $0.id == user.id }) ? .green : .gray.opacity(0.5))
                                         .onTapGesture {
-                                            toggleUserSelection(user.profileImageURL)
+                                            toggleUserSelection(for: user)
                                         }
                                 }
                                 .padding(.vertical, 12)
@@ -396,18 +400,19 @@ struct HalfSheetView: View {
         }
     }
     
-    private func toggleUserSelection(_ profileImage: String) {
-        if selectedUsers.contains(profileImage) {
-            selectedUsers.removeAll { $0 == profileImage }
+    private func toggleUserSelection(for user: User) {
+        if let index = selectedUsers.firstIndex(where: { $0.id == user.id }) {
+            selectedUsers.remove(at: index)
         } else if selectedUsers.count < 5 {
-            selectedUsers.append(profileImage)
+            let invited = InvitedUser(id: user.id, profileImageURL: user.profileImageURL)
+            selectedUsers.append(invited)
         }
     }
 }
 
 struct GroupNameView: View {
     @Binding var groupName: String
-    let selectedUsers: [String]
+    let selectedUsers: [InvitedUser]
     @FocusState private var isKeyboardActive: Bool
     // onDone returns the created DocumentReference (or nil on error)
     var onDone: (DocumentReference?) -> Void
@@ -445,6 +450,7 @@ struct GroupNameView: View {
         }
     }
     
+    // Save the group document under the creator's UID and duplicate it to each invited user's subcollection.
     private func saveGroupToFirestore(completion: @escaping (DocumentReference?) -> Void) {
         guard let uid = Auth.auth().currentUser?.uid else {
             completion(nil)
@@ -461,31 +467,43 @@ struct GroupNameView: View {
                let imageUrl = document.data()?["profileImageURL"] as? String {
                 currentUserImage = imageUrl
             }
-            // Merge the selected users with the current user's profile image.
-            var members = selectedUsers
-            if !members.contains(currentUserImage) && currentUserImage != "" {
-                members.insert(currentUserImage, at: 0)
-            }
-            // Use the current user's image as the group image.
+            
+            // Prepare arrays for invited UIDs and their profile image URLs.
+            let invitedUIDs = selectedUsers.map { $0.id }
+            let invitedProfileURLs = selectedUsers.map { $0.profileImageURL }
+            
+            // Combine the current user's data with the invited users.
+            let members = [currentUserImage] + invitedProfileURLs
+            let membersUID = [uid] + invitedUIDs
+            
             let groupData: [String: Any] = [
                 "groupName": groupName,
                 "members": members,
+                "membersUID": membersUID,
                 "groupImageURL": currentUserImage,
                 "timestamp": FieldValue.serverTimestamp()
             ]
             
-            let newDocRef = db.collection("users")
-                .document(uid)
-                .collection("groups")
-                .document()
+            // Use a batch write to add the group document under the creator and each invited user.
+            let batch = db.batch()
             
-            newDocRef.setData(groupData) { error in
+            // Create the group document under the creator's subcollection.
+            let creatorGroupRef = db.collection("users").document(uid).collection("groups").document()
+            batch.setData(groupData, forDocument: creatorGroupRef)
+            
+            // For each invited user, create a document with the same groupData.
+            for invited in selectedUsers {
+                let invitedGroupRef = db.collection("users").document(invited.id).collection("groups").document(creatorGroupRef.documentID)
+                batch.setData(groupData, forDocument: invitedGroupRef)
+            }
+            
+            batch.commit { error in
                 if let error = error {
                     print("Error saving group: \(error)")
                     completion(nil)
                 } else {
                     print("Group saved successfully.")
-                    completion(newDocRef)
+                    completion(creatorGroupRef)
                 }
             }
         }

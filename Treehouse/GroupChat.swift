@@ -10,16 +10,34 @@ import Firebase
 import FirebaseAuth
 import FirebaseFirestore
 
+// A model for each image the user sends
+struct SentImage: Identifiable {
+    let id = UUID()
+    let uid: String
+    let username: String
+    let imageURL: String
+}
+
 struct GroupChat: View {
     @Environment(\.dismiss) private var dismiss
     @State private var navigateToHome: Bool = false   // For navigation
     
-    @State private var groupImageURL: String = ""       // Fetched from the group doc
+    // We'll fetch all images from Firestore as "sentImages"
+    @State private var sentImages: [SentImage] = []
+    
     @State private var username: String = ""
     @State private var profileImageURL: String = ""
-    @State private var groupMembers: [String] = []      // Fetched members array from the group document
     
-    let groupId: String   // Group document ID passed from Home
+    // If you still want to keep track of group members:
+    @State private var groupMembers: [String] = []
+    
+    let groupId: String   // Group document ID
+    
+    // Grid layout: 2 columns
+    private let columns = [
+        GridItem(.flexible(), spacing: 12),
+        GridItem(.flexible(), spacing: 12)
+    ]
     
     var body: some View {
         ZStack {
@@ -53,56 +71,64 @@ struct GroupChat: View {
                 
                 Spacer(minLength: 20)
                 
-                // Main group image container
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(Color.white)
-                        .frame(width: 300, height: 450)
-                        .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                        .overlay(
-                            AsyncImage(url: URL(string: groupImageURL)) { image in
-                                image
-                                    .resizable()
-                                    .scaledToFill()
-                            } placeholder: {
-                                ProgressView()
-                            }
-                            .frame(width: 300, height: 450)
-                            .clipShape(RoundedRectangle(cornerRadius: 16))
-                        )
-                    
-                    // User's profile image + username overlay (the creator's image)
-                    HStack(spacing: 6) {
-                        AsyncImage(url: URL(string: profileImageURL)) { phase in
-                            if let img = phase.image {
-                                img.resizable()
-                                    .scaledToFill()
-                            } else if phase.error != nil {
-                                Circle().fill(Color.gray)
-                            } else {
-                                ProgressView()
+                // Scrollable grid of "sent images"
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 16) {
+                        ForEach(sentImages) { item in
+                            ZStack(alignment: .topLeading) {
+                                // The user's sent photo
+                                AsyncImage(url: URL(string: item.imageURL)) { phase in
+                                    if let img = phase.image {
+                                        img.resizable()
+                                            .scaledToFill()
+                                    } else if phase.error != nil {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .resizable()
+                                            .scaledToFit()
+                                            .foregroundColor(.red)
+                                    } else {
+                                        ProgressView()
+                                    }
+                                }
+                                .frame(height: 200)
+                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                
+                                // Updated name bubble: now shows the profile image alongside the username
+                                HStack(spacing: 6) {
+                                    AsyncImage(url: URL(string: profileImageURL)) { phase in
+                                        if let img = phase.image {
+                                            img.resizable()
+                                                .scaledToFill()
+                                        } else if phase.error != nil {
+                                            Circle().fill(Color.gray)
+                                        } else {
+                                            ProgressView()
+                                        }
+                                    }
+                                    .frame(width: 20, height: 20)
+                                    .clipShape(Circle())
+                                    
+                                    Text(username.isEmpty ? "Hasque" : username)
+                                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.black.opacity(0.4))
+                                )
+                                .padding(6)
                             }
                         }
-                        .frame(width: 33, height: 33)
-                        .clipShape(Circle())
-                        
-                        Text(username.isEmpty ? "Hasque" : username)
-                            .font(.system(size: 14, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
                     }
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(
-                        Capsule()
-                            .fill(Color.gray.opacity(0.8))
-                    )
-                    .offset(x: 14, y: 20)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
                 }
                 
-                Spacer(minLength: 30)
+                Spacer(minLength: 10)
                 
-                // Bottom bar with a waiting status and a camera button.
-                // The group members (excluding the creator) are displayed here.
+                // Bottom bar: If you still want to show "Waiting on..." with group members
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {
                         Text("Waiting on...")
@@ -151,7 +177,7 @@ struct GroupChat: View {
             fetchGroupDocument()
             fetchUserInfo()
         }
-        // Once the current user's profile image is fetched, remove it from the waiting list.
+        // Once the current user's profile image is fetched, remove it from the waiting list (if that's still your UI).
         .onChange(of: profileImageURL) { newValue in
             if !newValue.isEmpty {
                 self.groupMembers = self.groupMembers.filter { $0 != newValue }
@@ -161,7 +187,7 @@ struct GroupChat: View {
 }
 
 extension GroupChat {
-    // Fetch the group document to retrieve the group's image URL and members
+    // Fetch the group document to retrieve "sentImages" and (optionally) "members"
     private func fetchGroupDocument() {
         guard let uid = Auth.auth().currentUser?.uid else { return }
         let db = Firestore.firestore()
@@ -175,11 +201,25 @@ extension GroupChat {
                 print("Error fetching group document: \(error)")
                 return
             }
-            if let data = snapshot?.data() {
-                self.groupImageURL = data["groupImageURL"] as? String ?? ""
-                // Initially set groupMembers as fetched from Firestore.
-                self.groupMembers = data["members"] as? [String] ?? []
+            guard let data = snapshot?.data() else { return }
+            
+            // 1) Parse the "sentImages" array of dictionaries
+            if let sentImagesData = data["sentImages"] as? [[String: Any]] {
+                let parsedImages = sentImagesData.compactMap { dict -> SentImage? in
+                    guard
+                        let uid = dict["uid"] as? String,
+                        let username = dict["username"] as? String,
+                        let imageURL = dict["imageURL"] as? String
+                    else {
+                        return nil
+                    }
+                    return SentImage(uid: uid, username: username, imageURL: imageURL)
+                }
+                self.sentImages = parsedImages
             }
+            
+            // 2) If you still want to track group members:
+            self.groupMembers = data["members"] as? [String] ?? []
         }
     }
     
