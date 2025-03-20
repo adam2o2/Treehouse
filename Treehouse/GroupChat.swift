@@ -59,6 +59,7 @@ struct GroupChat: View {
                     Text("Sassy Captions")
                         .font(.system(size: 18, weight: .bold, design: .rounded))
                         .foregroundColor(.black)
+                        .offset(x: 15)
                     
                     Spacer()
                     
@@ -71,64 +72,88 @@ struct GroupChat: View {
                 
                 Spacer(minLength: 20)
                 
-                // Scrollable grid of "sent images"
-                ScrollView {
-                    LazyVGrid(columns: columns, spacing: 16) {
-                        ForEach(sentImages) { item in
-                            ZStack(alignment: .topLeading) {
-                                // The user's sent photo
-                                AsyncImage(url: URL(string: item.imageURL)) { phase in
+                // 2x2 layout with one image top-left + 3 gray boxes (no ScrollView)
+                LazyVGrid(columns: columns, spacing: 16) {
+                    
+                    // TOP-LEFT CELL: show first sent image if it exists
+                    if let firstItem = sentImages.first {
+                        ZStack(alignment: .topLeading) {
+                            // The user's sent photo
+                            AsyncImage(url: URL(string: firstItem.imageURL)) { phase in
+                                if let img = phase.image {
+                                    img.resizable()
+                                        .scaledToFill()
+                                } else if phase.error != nil {
+                                    Image(systemName: "exclamationmark.triangle")
+                                        .resizable()
+                                        .scaledToFit()
+                                        .foregroundColor(.red)
+                                } else {
+                                    ProgressView()
+                                }
+                            }
+                            .frame(width: 175, height: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
+                            .clipped()
+                            
+                            // Name bubble: profile pic + username
+                            HStack(spacing: 6) {
+                                AsyncImage(url: URL(string: profileImageURL)) { phase in
                                     if let img = phase.image {
                                         img.resizable()
                                             .scaledToFill()
                                     } else if phase.error != nil {
-                                        Image(systemName: "exclamationmark.triangle")
-                                            .resizable()
-                                            .scaledToFit()
-                                            .foregroundColor(.red)
+                                        Circle().fill(Color.gray)
                                     } else {
                                         ProgressView()
                                     }
                                 }
-                                .frame(height: 200)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                                .frame(width: 35, height: 35)
+                                .clipShape(Circle())
                                 
-                                // Updated name bubble: now shows the profile image alongside the username
-                                HStack(spacing: 6) {
-                                    AsyncImage(url: URL(string: profileImageURL)) { phase in
-                                        if let img = phase.image {
-                                            img.resizable()
-                                                .scaledToFill()
-                                        } else if phase.error != nil {
-                                            Circle().fill(Color.gray)
-                                        } else {
-                                            ProgressView()
-                                        }
-                                    }
-                                    .frame(width: 20, height: 20)
-                                    .clipShape(Circle())
-                                    
-                                    Text(username.isEmpty ? "Hasque" : username)
-                                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                                        .foregroundColor(.white)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule()
-                                        .fill(Color.black.opacity(0.4))
-                                )
-                                .padding(6)
+                                Text(username.isEmpty ? firstItem.username : username)
+                                    .font(.system(size: 16, weight: .bold, design: .rounded))
+                                    .foregroundColor(.white)
                             }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 6)
+                            .background(
+                                Capsule()
+                                    .fill(Color.black.opacity(0.4))
+                            )
+                            .padding(6)
                         }
+                    } else {
+                        // Fallback gray box if no first item
+                        Rectangle()
+                            .fill(Color.gray)
+                            .frame(width: 175, height: 300)
+                            .clipShape(RoundedRectangle(cornerRadius: 20))
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.bottom, 20)
+                    
+                    // TOP-RIGHT CELL: gray box
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(width: 175, height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                    
+                    // BOTTOM-LEFT CELL: gray box
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(width: 175, height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
+                    
+                    // BOTTOM-RIGHT CELL: gray box
+                    Rectangle()
+                        .fill(Color.gray)
+                        .frame(width: 175, height: 300)
+                        .clipShape(RoundedRectangle(cornerRadius: 20))
                 }
+                .padding(.horizontal, 16)
                 
                 Spacer(minLength: 10)
                 
-                // Bottom bar: If you still want to show "Waiting on..." with group members
+                // Bottom bar: "Waiting on..." with group members
                 HStack(spacing: 12) {
                     HStack(spacing: 8) {
                         Text("Waiting on...")
@@ -163,7 +188,6 @@ struct GroupChat: View {
                     .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 2)
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 20)
             }
             
             // Hidden NavigationLink for back navigation
@@ -241,6 +265,5 @@ extension GroupChat {
 }
 
 #Preview {
-    // For preview purposes, pass a dummy groupId.
     GroupChat(groupId: "dummyGroupId")
 }

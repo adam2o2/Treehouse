@@ -214,6 +214,7 @@ struct GroupCardView: View {
                                 Circle()
                                     .stroke(Color.white, lineWidth: 4)
                             )
+                            .zIndex(Double(group.memberImageURLs.count - index))
                     }
                 }
                 .padding(.top, 16)
