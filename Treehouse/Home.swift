@@ -108,7 +108,7 @@ struct Home: View {
                     Text("Treehouse")
                         .font(.system(size: 56, weight: .bold, design: .rounded))
                         .foregroundColor(.black)
-                        .padding(.top, 50)
+                        .padding(.top, 10)
                         .padding(.leading, 20)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     
